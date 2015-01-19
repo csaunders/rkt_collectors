@@ -68,8 +68,7 @@
 
 (define (mark-position bytemask position) (void))
 
-
-
+;; Allocator Initialization
 (define (init-allocator)
   (begin
     (set-heap-pointer)
@@ -106,6 +105,7 @@
     (make-vector 8)
     (begin (init-allocator) (heap-ref 0)))
   1)
+
 
 (define (gc:alloc-flat p) 0)
 
