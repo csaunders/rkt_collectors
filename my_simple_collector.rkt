@@ -1,6 +1,10 @@
 #lang plai/collector
 (define heap-ptr 'uninitialized-heap-ptr)
-(define free-memory '())
+
+(define (assert-fail success-message failure-message fn)
+  (with-handlers ([exn:fail? (lambda (exn) success-message)])
+    (fn)
+    failure-message))
 
 (define (set-heap-ptr! pos)
   (if (eq? 'free (heap-ref pos))
@@ -11,6 +15,15 @@
  (with-heap (vector 1 2 3 'free 'free 'free) (set-heap-ptr! 0)
             heap-ptr)
  3)
+
+(define (free-memory)
+  (filter-map (lambda (addr)
+                (and (eq? 'free (heap-ref addr)) addr))
+              (build-list (heap-size) values)))
+
+(test ;; finding free memory
+ (with-heap (vector 'x 'x 'x 'free 'x) (free-memory))
+ '(3))
 
 (define (oom? offset)
   (> (+ heap-ptr offset) (heap-size)))
@@ -24,6 +37,7 @@
             (+ (car amount) heap-ptr)
             (+ 1 heap-ptr)))
   heap-ptr)
+  
 
 (define (slot-of-size size memory-space)
   (if (empty? memory-space)
@@ -65,12 +79,36 @@
  '(6 7 8 9))
 
 (define (find-space-for type)
-  (let ([available-address  (cond
-                              [(eq? 'prim type) (slot-of-size 2 free-memory)]
-                              [(eq? 'cons type) (slot-of-size 3 free-memory)])])
-    (if (not available-address)
+  (let* ([available-addresses  (cond
+                                [(eq? 'prim type) (slot-of-size 2 (free-memory))]
+                                [(eq? 'cons type) (slot-of-size 3 (free-memory))])])
+    (if (empty? available-addresses)
         (oom! 'find-space-for)
-        available-address)))
+        available-addresses)))
+
+(test ;; finding available addresses for cons cells
+ (let ([v (make-vector 12 'free)])
+   (with-heap v (find-space-for 'cons)))
+ '(0 1 2))
+
+(test ;; finding available addresses for flat data
+ (let ([v (make-vector 12 'free)])
+   (with-heap v (find-space-for 'prim)))
+ '(0 1))
+
+(test ;; finding available addresses for memory that is very fragmented
+ (let ([v (vector 'x 'x 'free 'x 'free 'x 'x 'free 'free)])
+   (with-heap v (find-space-for 'prim)))
+ '(7 8))
+
+(test ;; throws an error when there is not enough space to fit a item
+ (assert-fail
+  "error raised"
+  "error not raised"
+  (lambda ()
+    (let ([v (vector 'x 'x 'free 'x 'free 'x 'x 'free 'free)])
+      (with-heap v (find-space-for 'cons)))))
+ "error raised")
 
 (define (memory-addresses item)
   (cond
@@ -196,11 +234,6 @@
  (with-heap (vector 'prim 1 'prim 2 'cons 0 2)
             (gc:first 4))
  0)
-
-(define (assert-fail success-message failure-message fn)
-  (with-handlers ([exn:fail? (lambda (exn) success-message)])
-    (fn)
-    failure-message))
 
 (test ;; gc:first for a heap-ref that is not a cons cell
  (assert-fail
