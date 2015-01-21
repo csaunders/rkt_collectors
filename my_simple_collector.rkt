@@ -1,5 +1,6 @@
 #lang plai/collector
 (define heap-ptr 'uninitialized-heap-ptr)
+(define free-memory '())
 
 (define (set-heap-ptr! pos)
   (if (eq? 'free (heap-ref pos))
@@ -24,35 +25,67 @@
             (+ 1 heap-ptr)))
   heap-ptr)
 
-(test ;; that calling incr-heap! with no arguments increases the heap by 1
- (begin
-   (set! heap-ptr 0)
-   (incr-heap!))
- 1)
+(define (slot-of-size size memory-space)
+  (if (empty? memory-space)
+      '()
+      (let* ([prospect (car memory-space)]
+             [has-more (not (empty? (cdr memory-space)))]
+             [neighbour-is-bigger-by-one
+              (if has-more
+                  (= (+ 1 prospect) (cadr memory-space))
+                  #f)])
+        (cond
+          [(= 1 size) (list prospect)]
+          [(and has-more (not neighbour-is-bigger-by-one)) (slot-of-size size (cdr memory-space))]
+          [(and has-more neighbour-is-bigger-by-one)
+           (let* ([candidate-rest (slot-of-size (- size 1) (cdr memory-space))])
+             (if (and (= (- size 1) (length candidate-rest)) (or (empty? candidate-rest)(= (+ 1 prospect) (car candidate-rest))))
+                 (append (list prospect) candidate-rest)
+                 (slot-of-size size (cdr memory-space))))]
+          [else (slot-of-size size (cdr memory-space))]))))
 
-(test ;; that calling incr-heap! with a single argument increments the heap by that amount
- (begin
-   (set! heap-ptr 0)
-   (incr-heap! 5))
- 5)
+(test ;; slot-of-size when there is free space but not consecutively
+ (let ([memory '(0 2 4 6 8)])
+   (slot-of-size 2 memory))
+ empty)
 
-(test ;; that calling incr-heap! with a non-zero starting value returns heap end location
- (begin
-   (set! heap-ptr 4)
-   (incr-heap! 2))
- 6)
+(test ;; slot-of-size when there is not just enough free consecutive space
+ (let ([memory '(0 1 2 4 5)])
+   (slot-of-size 4 memory))
+ empty)
 
-(test ;; that calling incr-heap! with multiple arguments only uses the first
- (begin 
-   (set! heap-ptr 1)
-   (incr-heap! 4 5 6 7))
- 5)
+(test ;; slot-of-size when there is enough free consecutive space
+ (let ([memory '(0 1 2 3 4 5)])
+   (slot-of-size 4 memory))
+ '(0 1 2 3))
+
+(test ;; slot-of-size when the free memory is not right at the start
+ (let ([memory '(0 1 3 4 6 7 8 9)])
+   (slot-of-size 4 memory))
+ '(6 7 8 9))
+
+(define (find-space-for type)
+  (let ([available-address  (cond
+                              [(eq? 'prim type) (slot-of-size 2 free-memory)]
+                              [(eq? 'cons type) (slot-of-size 3 free-memory)])])
+    (if (not available-address)
+        (oom! 'find-space-for)
+        available-address)))
+
+(define (memory-addresses item)
+  (cond
+    [(gc:flat? item) (list item (+ 1 item))]
+    [(gc:cons? item) (let ([first (+ 1 item)]
+                           [rest  (+ 2 item)])
+                       (list item first rest (heap-ref first) (heap-ref rest)))]
+    [else '(item)]))
 
 (define (sweep addresses)
   (unless (empty? addresses)
     (begin
       (heap-set! (car addresses) 'free)
-      (sweep (cdr addresses)))))
+      (sweep (cdr addresses))
+      addresses)))
 
 (test
  (let [(v (vector 0 1 2 3 4 5 6))]
@@ -61,15 +94,21 @@
             v))
  (vector 'free 1 2 'free 'free 5 'free))
 
+;; Allocator Initialization
+
 (define (init-allocator)
-  (begin
-    (sweep (build-list (heap-size) values))
-    (set! heap-ptr 0)))
+  (let ([memory (build-list (heap-size) values)])
+    (begin
+      (sweep memory)
+      (set! heap-ptr 0)
+      (set! free-memory memory))))
 
 (test (let ([v (make-vector 12 'x)])
         (with-heap v (init-allocator))
         v)
       (make-vector 12 'free))
+
+;; Flat Value Allocation
 
 (define (allocate-flat p)
   (if (oom? 2)
@@ -85,6 +124,8 @@
   (when (oom? 2)
     (sweep))
   (allocate-flat p))
+
+;; Cons Cell Allocation
 
 (define (allocate-cons first rest)
   (let ([cons-ptr heap-ptr])
@@ -202,15 +243,7 @@
  
 (define (gc:deref a)
  (heap-ref (+ 1 a)))
-
-(define (memory-addresses item)
-  (cond
-    [(gc:flat? item) (list item (+ 1 item))]
-    [(gc:cons? item) (let ([first (+ 1 item)]
-                           [rest  (+ 2 item)])
-                       (list item first rest (heap-ref first) (heap-ref rest)))]
-    [else '(item)]))
-
+ 
 ;; Actual Garbage Collection Business
 (define (mark)
   (let* ([greys (get-root-set)]
@@ -249,4 +282,27 @@
   (vector 'cons 9 3 'cons 11 6 'cons 13 15 'prim 1 'prim 2 'prim 3 'prim empty)
   (with-roots '(0) (mark)))
  '())
- 
+
+(test ;; that calling incr-heap! with no arguments increases the heap by 1
+ (begin
+   (set! heap-ptr 0)
+   (incr-heap!))
+ 1)
+
+(test ;; that calling incr-heap! with a single argument increments the heap by that amount
+ (begin
+   (set! heap-ptr 0)
+   (incr-heap! 5))
+ 5)
+
+(test ;; that calling incr-heap! with a non-zero starting value returns heap end location
+ (begin
+   (set! heap-ptr 4)
+   (incr-heap! 2))
+ 6)
+
+(test ;; that calling incr-heap! with multiple arguments only uses the first
+ (begin 
+   (set! heap-ptr 1)
+   (incr-heap! 4 5 6 7))
+ 5)
