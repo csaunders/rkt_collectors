@@ -26,6 +26,7 @@
  '(3))
 
 (define (oom? offset)
+  (when (> offset 60) (write "point of interest"))
   (> (+ heap-ptr offset) (heap-size)))
 
 (define (oom! err)
@@ -78,27 +79,35 @@
    (slot-of-size 4 memory))
  '(6 7 8 9))
 
-(define (find-space-for type)
-  (let* ([available-addresses  (cond
-                                [(eq? 'prim type) (slot-of-size 2 (free-memory))]
-                                [(eq? 'cons type) (slot-of-size 3 (free-memory))])])
+(define (find-space-for type get-roots)
+  (let* ([space (free-memory)]
+         [address-finder (lambda ()
+                            (cond
+                              [(eq? 'prim type) (slot-of-size 2 (free-memory))]
+                              [(eq? 'cons type) (slot-of-size 3 (free-memory))]))]
+         [available-addresses (address-finder)])
     (if (empty? available-addresses)
-        (oom! 'find-space-for)
+        (begin
+          (sweep (mark get-roots))
+          (let ([new-available-addresses (address-finder)])
+            (if (empty? new-available-addresses)
+                (oom! 'find-space-for)
+                new-available-addresses)))
         available-addresses)))
 
 (test ;; finding available addresses for cons cells
  (let ([v (make-vector 12 'free)])
-   (with-heap v (find-space-for 'cons)))
+   (with-heap v (find-space-for 'cons (lambda () '()))))
  '(0 1 2))
 
 (test ;; finding available addresses for flat data
  (let ([v (make-vector 12 'free)])
-   (with-heap v (find-space-for 'prim)))
+   (with-heap v (find-space-for 'prim (lambda () '()))))
  '(0 1))
 
 (test ;; finding available addresses for memory that is very fragmented
  (let ([v (vector 'x 'x 'free 'x 'free 'x 'x 'free 'free)])
-   (with-heap v (find-space-for 'prim)))
+   (with-heap v (find-space-for 'prim (lambda () '()))))
  '(7 8))
 
 (test ;; throws an error when there is not enough space to fit a item
@@ -107,18 +116,20 @@
   "error not raised"
   (lambda ()
     (let ([v (vector 'x 'x 'free 'x 'free 'x 'x 'free 'free)])
-      (with-heap v (find-space-for 'cons)))))
+      (with-heap v (find-space-for 'cons (lambda () '()))))))
  "error raised")
 
 (define (memory-addresses item)
-  (cond
-    [(gc:flat? item) (list item (+ 1 item))]
-    [(gc:cons? item) (let ([first (+ 1 item)]
-                           [rest  (+ 2 item)])
-                       (list item first rest (heap-ref first) (heap-ref rest)))]
-    [else '(item)]))
+  (let ((value (if (number? item)(heap-ref item) #f)))
+    (cond
+      [(eq? 'prim value) (list item (+ 1 item))]
+      [(eq? 'cons value) (let ([first (+ 1 item)]
+                             [rest  (+ 2 item)])
+                         (list item first rest (heap-ref first) (heap-ref rest)))]
+      [else '(item)])))
 
 (define (sweep addresses)
+  
   (unless (empty? addresses)
     (begin
       (heap-set! (car addresses) 'free)
@@ -138,8 +149,7 @@
   (let ([memory (build-list (heap-size) values)])
     (begin
       (sweep memory)
-      (set! heap-ptr 0)
-      (set! free-memory memory))))
+      (set! heap-ptr 0))))
 
 (test (let ([v (make-vector 12 'x)])
         (with-heap v (init-allocator))
@@ -148,20 +158,21 @@
 
 ;; Flat Value Allocation
 
-(define (allocate-flat p)
-  (if (oom? 2)
-      (oom! 'gc:alloc-flat)
-      (begin
-        (heap-set! heap-ptr 'prim)
-        (heap-set! (+ 1 heap-ptr) p)
-        (set! heap-ptr (+ 2 heap-ptr))
-        
-        (- heap-ptr 2))))
+(define (allocate-flat ptr value)
+  (begin
+    (heap-set! ptr 'prim)
+    (heap-set! (+ 1 ptr) value)))
  
-(define (gc:alloc-flat p)
-  (when (oom? 2)
-    (sweep))
-  (allocate-flat p))
+(define (gc:alloc-flat value)
+  (let [(ptr (car (find-space-for
+              'prim
+              (lambda ()
+                (if (procedure? value)
+                    (append (procedure-roots value)
+                            (get-root-set))
+                    (get-root-set))))))]
+  (allocate-flat ptr value)
+  ptr))
 
 ;; Cons Cell Allocation
 
@@ -206,7 +217,7 @@
 
 (define (gc:cons f r)
   (when (oom? 3)
-    (sweep))
+    (sweep (mark)))
   (allocate-cons f r))
  
 (define (gc:cons? a)
@@ -272,14 +283,14 @@
   (heap-set! (+ 2 a) r))
  
 (define (gc:flat? a)
- (eq? (heap-ref a) 'prim))
+  (eq? (heap-ref a) 'prim))
  
 (define (gc:deref a)
  (heap-ref (+ 1 a)))
  
 ;; Actual Garbage Collection Business
-(define (mark)
-  (let* ([greys (get-root-set)]
+(define (mark get-roots)
+  (let* ([greys (map read-root (get-roots))]
          [whites (remv* greys (build-list (heap-size) values))])
     (perform-mark '() greys whites)))
 

@@ -1,6 +1,6 @@
 ;; http://en.wikipedia.org/wiki/Newton%27s_method
 #lang plai/mutator ;; Tell Racket to use the 'mutator' language
-(allocator-setup "simple_collector.rkt" 64) ;; Set up an allocator with 128 spaces
+(allocator-setup "my_simple_collector.rkt" 64) ;; Set up an allocator with 128 spaces
 
 ;; We aren't going to figure out what the derivative is, we will simply
 ;; provide the derivative ourselves
@@ -20,4 +20,4 @@
 
 ;; The square root of 612 is ~24.738633754
 ;;(newtons-method-iter 10 612 square double 2)
-;;(newtons-method-iter 10 612 square double 5)
+(newtons-method-iter 10 612 square double 5)
