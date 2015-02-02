@@ -13,9 +13,6 @@
                 (and (eq? 'free (heap-ref addr)) addr))
               (build-list (heap-size) values)))
 
-(define (oom? offset)
-  (< (length (free-memory)) 0))
-
 (define (oom! err)
   (error err "out of memory"))
 
@@ -106,8 +103,6 @@
     ptr))
 
 (define (gc:cons f r)
-  (when (oom? 3)
-    (sweep (mark)))
   (allocate-cons f r))
  
 (define (gc:cons? a)
