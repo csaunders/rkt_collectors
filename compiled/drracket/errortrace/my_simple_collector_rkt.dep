@@ -1,1 +1,1 @@
-("6.0.1" ("e45db5b76d9a8604740dd0b927c90eb8a5ab8b2e" . "b610c859911fd2f872131527727ff2a948ab5799") (collects #"scheme" #"runtime-config.rkt") (collects #"plai" #"collector.rkt") (collects #"scheme" #"main.rkt") (collects #"plai" #"collector" #"lang" #"reader.rkt"))
+("6.0.1" ("7e5b5cfb972f24f254ad926685ffae06bdde33fe" . "b610c859911fd2f872131527727ff2a948ab5799") (collects #"scheme" #"runtime-config.rkt") (collects #"plai" #"collector.rkt") (collects #"scheme" #"main.rkt") (collects #"plai" #"collector" #"lang" #"reader.rkt"))

@@ -7,37 +7,6 @@
     (fn)
     failure-message))
 
-;; Heap Pointer
-(test ;; That set-heap-ptr sets the pointer to the position of the first free entry
- (with-heap (vector 1 2 3 'free 'free 'free) (set-heap-ptr! 0)
-            heap-ptr)
- 3)
-
-;; Incrementing the Heap Pointer
-(test ;; that calling incr-heap! with no arguments increases the heap by 1
- (begin
-   (heap-ptr-force! 0)
-   (incr-heap!))
- 1)
-
-(test ;; that calling incr-heap! with a single argument increments the heap by that amount
- (begin
-   (heap-ptr-force! 0)
-   (incr-heap! 5))
- 5)
-
-(test ;; that calling incr-heap! with a non-zero starting value returns heap end location
- (begin
-   (heap-ptr-force! 4)
-   (incr-heap! 2))
- 6)
-
-(test ;; that calling incr-heap! with multiple arguments only uses the first
- (begin 
-   (heap-ptr-force! 1)
-   (incr-heap! 4 5 6 7))
- 5)
-
 ;; Finding Free Memory
 (test ;; finding free memory
  (with-heap (vector 'x 'x 'x 'free 'x) (free-memory))
@@ -111,16 +80,6 @@
                (allocate-cons 8 2)))
    v)
  (vector 'cons 8 2 'free))
-
-(test ;; allocating a cons cell does not modify the heap-ptr
- (let ([v (make-vector 8 'free)])
-       (with-heap v
-                  (let ([p1 (gc:alloc-flat 1)]
-                        [p2 (gc:alloc-flat 2)])
-                    (begin
-                      (gc:cons p1 p2)))
-       heap-ptr))
- 0)
 
 (test ;;allocating a cons cell returns the address of the 'cons
  (let ([v (make-vector 8 'free)])

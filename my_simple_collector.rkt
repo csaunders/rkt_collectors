@@ -1,9 +1,5 @@
 #lang plai/collector
 (provide
- heap-ptr
- heap-ptr-force!
- set-heap-ptr!
- incr-heap!
  free-memory
  slot-of-size
  find-space-for
@@ -12,35 +8,16 @@
  perform-mark
  sweep)
 
-(define heap-ptr 'uninitialized-heap-ptr)
-
-(define (heap-ptr-force! address)
-  (set! heap-ptr address))
-
-(define (set-heap-ptr! pos)
-  (if (eq? 'free (heap-ref pos))
-      (set! heap-ptr pos)
-      (set-heap-ptr! (+ 1 pos))))
-
 (define (free-memory)
   (filter-map (lambda (addr)
                 (and (eq? 'free (heap-ref addr)) addr))
               (build-list (heap-size) values)))
 
 (define (oom? offset)
-  (when (> offset 60) (write "point of interest"))
-  (> (+ heap-ptr offset) (heap-size)))
+  (< (length (free-memory)) 0))
 
 (define (oom! err)
   (error err "out of memory"))
-
-(define (incr-heap! . amount)
-  (set! heap-ptr
-        (if (not (eq? '() amount))
-            (+ (car amount) heap-ptr)
-            (+ 1 heap-ptr)))
-  heap-ptr)
-  
 
 (define (slot-of-size size memory-space)
   (if (empty? memory-space)
@@ -98,8 +75,7 @@
 (define (init-allocator)
   (let ([memory (build-list (heap-size) values)])
     (begin
-      (sweep memory)
-      (set! heap-ptr 0))))
+      (sweep memory))))
 
 ;; Flat Value Allocation
 
