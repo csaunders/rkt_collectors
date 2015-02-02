@@ -49,13 +49,25 @@
    (with-heap v (find-space-for 'prim (lambda () '()))))
  '(7 8))
 
+(test ;; finding available space when garbage has to be collected
+ (let ([v (make-vector 12 'x)])
+   (with-heap v
+              (with-roots '()
+                          (find-space-for 'prim (lambda () '())))))
+ '(0 1))
+
 (test ;; throws an error when there is not enough space to fit a item
  (assert-fail
   "error raised"
   "error not raised"
   (lambda ()
-    (let ([v (vector 'x 'x 'free 'x 'free 'x 'x 'free 'free)])
-      (with-heap v (find-space-for 'cons (lambda () '()))))))
+    (let ([v (make-vector 6 'free)])
+      (with-heap v
+                 (let
+                     ([p1 (gc:alloc-flat 1)]
+                      [p2 (gc:alloc-flat 2)])
+                   (with-roots (list p1 p2)
+                               (find-space-for 'cons '())))))))
  "error raised")
 
 ;; Sweeping

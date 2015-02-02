@@ -36,11 +36,10 @@
           [else (slot-of-size size (cdr memory-space))]))))
 
 (define (find-space-for type get-roots)
-  (let* ([space (free-memory)]
-         [address-finder (lambda ()
-                            (cond
-                              [(eq? 'prim type) (slot-of-size 2 space)]
-                              [(eq? 'cons type) (slot-of-size 3 space)]))]
+  (let* ([address-finder (lambda ()
+                           (cond
+                             [(eq? 'prim type) (slot-of-size 2 (free-memory))]
+                             [(eq? 'cons type) (slot-of-size 3 (free-memory))]))]
          [available-addresses (address-finder)])
     (if (empty? available-addresses)
         (begin
@@ -136,7 +135,7 @@
  
 ;; Actual Garbage Collection Business
 (define (mark . get-roots)
-  (let* ([roots (if (not (eq? '() get-roots)) (get-roots) (get-root-set))]
+  (let* ([roots (if (not (eq? '() get-roots)) ((car get-roots)) (get-root-set))]
          [greys (map
                  (lambda (root)
                    ;; Hack -- How do I create roots when testing?
