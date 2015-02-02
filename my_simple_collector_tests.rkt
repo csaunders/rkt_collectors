@@ -108,25 +108,24 @@
  (let ([v (make-vector 4 'free)])
    (with-heap v
               (begin ;; Because we are modifying global variables we need to fix the heap ptr
-               (init-allocator)
                (allocate-cons 8 2)))
    v)
  (vector 'cons 8 2 'free))
 
-(test ;;allocating a cons cell correctly increments the heap-ptr
- (let ([v (make-vector 4 'free)])
-   (with-heap v
-              (begin ;; Because we are modifying global variables we need to fix the heap ptr
-                (init-allocator)
-                (allocate-cons 8 2)))
-   heap-ptr)
- 3)
+(test ;; allocating a cons cell does not modify the heap-ptr
+ (let ([v (make-vector 8 'free)])
+       (with-heap v
+                  (let ([p1 (gc:alloc-flat 1)]
+                        [p2 (gc:alloc-flat 2)])
+                    (begin
+                      (gc:cons p1 p2)))
+       heap-ptr))
+ 0)
 
 (test ;;allocating a cons cell returns the address of the 'cons
  (let ([v (make-vector 8 'free)])
    (with-heap v
               (begin
-                (init-allocator)
                 (allocate-cons 8 2)
                 (allocate-cons 8 3))))
  3)

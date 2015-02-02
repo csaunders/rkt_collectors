@@ -122,16 +122,12 @@
 ;; Cons Cell Allocation
 
 (define (allocate-cons first rest)
-  (let ([cons-ptr heap-ptr])
+  (let [(ptr (car (find-space-for 'cons (lambda () (get-root-set)))))]
     (begin
-      (when (oom? 3)
-        (oom! 'gc:cons))
-      (heap-set! heap-ptr 'cons)
-      (heap-set! (incr-heap!) first)
-      (heap-set! (incr-heap!) rest)
-      (incr-heap!)
-      )
-    cons-ptr))
+      (heap-set! ptr 'cons)
+      (heap-set! (+ ptr 1) first)
+      (heap-set! (+ ptr 2) rest))
+    ptr))
 
 (define (gc:cons f r)
   (when (oom? 3)
