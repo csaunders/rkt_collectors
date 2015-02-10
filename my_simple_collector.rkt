@@ -29,7 +29,8 @@
           [(= 1 size) (list prospect)]
           [(and has-more (not neighbour-is-bigger-by-one)) (slot-of-size size (cdr memory-space))]
           [(and has-more neighbour-is-bigger-by-one)
-           (let* ([candidate-rest (slot-of-size (- size 1) (cdr memory-space))])
+           (let ([candidate-rest
+                  (slot-of-size (- size 1) (cdr memory-space))])
              (if (and (= (- size 1) (length candidate-rest)) (or (empty? candidate-rest)(= (+ 1 prospect) (car candidate-rest))))
                  (append (list prospect) candidate-rest)
                  (slot-of-size size (cdr memory-space))))]

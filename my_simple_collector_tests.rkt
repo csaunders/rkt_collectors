@@ -89,7 +89,7 @@
  (let ([v (make-vector 4 'free)])
    (with-heap v
               (begin ;; Because we are modifying global variables we need to fix the heap ptr
-               (allocate-cons 8 2)))
+               (gc:cons 8 2)))
    v)
  (vector 'cons 8 2 'free))
 
